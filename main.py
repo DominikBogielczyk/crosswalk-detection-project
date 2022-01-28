@@ -6,63 +6,14 @@ from sklearn.metrics import confusion_matrix
 import pandas
 import os
 
-# translation of 43 classes to 3 classes:
-# 0 - prohibitory
-# 1 - warning
-# 2 - mandatory
-# -1 - not used
-class_id_to_new_class_id = {0: 0,
-                            1: 0,
-                            2: 0,
-                            3: 0,
-                            4: 0,
-                            5: 0,
-                            6: -1,
-                            7: 0,
-                            8: 0,
-                            9: 0,
-                            10: 0,
-                            11: 1,
-                            12: -1,
-                            13: 1,
-                            14: 0,
-                            15: 0,
-                            16: 0,
-                            17: 0,
-                            18: 1,
-                            19: 1,
-                            20: 1,
-                            21: 1,
-                            22: 1,
-                            23: 1,
-                            24: 1,
-                            25: 1,
-                            26: 1,
-                            27: 1,
-                            28: 1,
-                            29: 1,
-                            30: 1,
-                            31: 1,
-                            32: -1,
-                            33: 2,
-                            34: 2,
-                            35: 2,
-                            36: 2,
-                            37: 2,
-                            38: 2,
-                            39: 2,
-                            40: 2,
-                            41: -1,
-                            42: -1}
+# translation to 2 classes:
+# 1 - crosswalk
+# 0 - other sign
+class_id_to_new_class_id = {'trafficlight': 0, 'stop': 0, 'speedlimit': 0, 'crosswalk': 1}
 
 
 def load_data(path, filename):
-    """
-    Loads data from disk.
-    @param path: Path to dataset directory.
-    @param filename: Filename of csv file with information about samples.
-    @return: List of dictionaries, one for every sample, with entries "image" (np.array with image) and "label" (class_id).
-    """
+
     entry_list = pandas.read_csv(os.path.join(path, filename))
 
     data = []
@@ -78,11 +29,8 @@ def load_data(path, filename):
     
 
 def learn_bovw(data):
-    """
-    Learns BoVW dictionary and saves it as "voc.npy" file.
-    @param data: List of dictionaries, one for every sample, with entries "image" (np.array with image) and "label" (class_id).
-    @return: Nothing
-    """
+    #Learns BoVW dictionary and saves it as "voc.npy" file.
+
     dict_size = 128
     bow = cv2.BOWKMeansTrainer(dict_size)
 
@@ -100,11 +48,8 @@ def learn_bovw(data):
 
 
 def extract_features(data):
-    """
-    Extracts features for given data and saves it as "desc" entry.
-    @param data: List of dictionaries, one for every sample, with entries "image" (np.array with image) and "label" (class_id).
-    @return: Data with added descriptors for each sample.
-    """
+    #Extracts features for given data and saves it as "desc" entry.
+
     sift = cv2.SIFT_create()
     flann = cv2.FlannBasedMatcher_create()
     bow = cv2.BOWImgDescriptorExtractor(sift, flann)
@@ -121,12 +66,8 @@ def extract_features(data):
 
 
 def train(data):
-    """
-    Trains Random Forest classifier.
-    @param data: List of dictionaries, one for every sample, with entries "image" (np.array with image), "label" (class_id),
-                    "desc" (np.array with descriptor).
-    @return: Trained model.
-    """
+    #Trains Random Forest classifier.
+
     # train random forest model and return it from function.
     descs = []
     labels = []
@@ -171,13 +112,7 @@ def draw_grid(images, n_classes, grid_size, h, w):
 
 
 def predict(rf, data):
-    """
-    Predicts labels given a model and saves them as "label_pred" (int) entry for each sample.
-    @param rf: Trained model.
-    @param data: List of dictionaries, one for every sample, with entries "image" (np.array with image), "label" (class_id),
-                    "desc" (np.array with descriptor).
-    @return: Data with added predicted labels for each sample.
-    """
+    #Predicts labels given a model and saves them as "label_pred" (int) entry for each sample.
     # perform prediction using trained model and add results as "label_pred" (int) entry in sample
 
     for sample in data:
@@ -189,12 +124,7 @@ def predict(rf, data):
 
 
 def evaluate(data):
-    """
-    Evaluates results of classification.
-    @param data: List of dictionaries, one for every sample, with entries "image" (np.array with image), "label" (class_id),
-                    "desc" (np.array with descriptor), and "label_pred".
-    @return: Nothing.
-    """
+    #Evaluates results of classification.
     # evaluate classification results and print statistics
     pred_labels = []
     true_labels=[]
@@ -220,13 +150,9 @@ def evaluate(data):
 
 
 def display(data):
-    """
-    Displays samples of correct and incorrect classification.
-    @param data: List of dictionaries, one for every sample, with entries "image" (np.array with image), "label" (class_id),
-                    "desc" (np.array with descriptor), and "label_pred".
-    @return: Nothing.
-    """
-    n_classes = 3
+    #Displays samples of correct and incorrect classification.
+
+    n_classes = 2
 
     corr = {}
     incorr = {}
@@ -273,11 +199,8 @@ def display(data):
 
 
 def display_dataset_stats(data):
-    """
-    Displays statistics about dataset in a form: class_id: number_of_samples
-    @param data: List of dictionaries, one for every sample, with entry "label" (class_id).
-    @return: Nothing
-    """
+    #Displays statistics about dataset in a form: class_id: number_of_samples
+
     class_to_num = {}
     for idx, sample in enumerate(data):
         class_id = sample['label']
@@ -291,12 +214,8 @@ def display_dataset_stats(data):
 
 
 def balance_dataset(data, ratio):
-    """
-    Subsamples dataset according to ratio.
-    @param data: List of samples.
-    @param ratio: Ratio of samples to be returned.
-    @return: Subsampled dataset.
-    """
+    #Subsamples dataset according to ratio.
+
     sampled_data = random.sample(data, int(ratio * len(data)))
 
     return sampled_data
