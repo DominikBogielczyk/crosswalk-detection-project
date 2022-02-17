@@ -44,8 +44,6 @@ def load_data(im_path, an_path):
     return data
 
 def learn_bovw(data):
-    #Learns BoVW dictionary and saves it as "voc.npy" file.
-
     dict_size = 128
     bow = cv2.BOWKMeansTrainer(dict_size)
 
@@ -58,13 +56,10 @@ def learn_bovw(data):
             bow.add(desc)
 
     vocabulary = bow.cluster()
-
     np.save('voc.npy', vocabulary)
 
 
 def extract_features(data):
-    #Extracts features for given data and saves it as "desc" entry.
-
     sift = cv2.SIFT_create()
     flann = cv2.FlannBasedMatcher_create()
     bow = cv2.BOWImgDescriptorExtractor(sift, flann)
@@ -80,9 +75,6 @@ def extract_features(data):
     return data
 
 def train(data):
-    #Trains Random Forest classifier.
-
-    # train random forest model and return it from function.
     descs = []
     labels = []
 
@@ -97,10 +89,6 @@ def train(data):
     return clf
 
 def predict(rf, data):
-    #Predicts labels given a model and saves them as "label_pred" (int) entry for each sample.
-
-    # perform prediction using trained model and add results as "label_pred" (int) entry in sample
-
     for sample in data:
         if sample['desc'] is not None:
             pred = rf.predict(sample['desc'])
@@ -109,9 +97,6 @@ def predict(rf, data):
     return data
 
 def evaluate(data):
-    #Evaluates results of classification.
-
-    # evaluate classification results and print statistics
     pred_labels = []
     true_labels = []
 
@@ -128,18 +113,16 @@ def evaluate(data):
     acc = l/(l+m)
     print('accuracy= %.3f' % acc)
 
-    matrix = confusion_matrix(true_labels, pred_labels)
-    print(matrix)
-
-    # this function does not return anything
+    #matrix = confusion_matrix(true_labels, pred_labels)
+    #print(matrix)
     return
 
-def balance_dataset(data, ratio):
-    #Subsamples dataset according to ratio.
 
+def balance_dataset(data, ratio):
     sampled_data = random.sample(data, int(ratio * len(data)))
 
     return sampled_data
+
 
 def main():
     train_im_path = Path('train/images')
@@ -169,6 +152,7 @@ def main():
     print('testing on testing dataset')
     data_test = predict(rf, data_test)
     evaluate(data_test)
+
 
 if __name__ == '__main__':
     main()
