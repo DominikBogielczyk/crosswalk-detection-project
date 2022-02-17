@@ -13,27 +13,32 @@ for n in range(len(paths)):
 
     # setting threshold of gray image
     _, threshold = cv2.threshold(gray, 70, 255, cv2.THRESH_BINARY)
-    _, threshold2 = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
 
     contours, _ = cv2.findContours(threshold, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    contours2, _ = cv2.findContours(threshold2, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-    all_countours = [contours, contours2]
+    print(paths[n])
+    k = 0
 
-    for cont in all_countours:
-        i = 0
-        for contour in cont:
-            if i == 0:
-                i = 1
+    i = 0
+    for contour in contours:
+        if i == 0:
+            i = 1
 
-            approx = cv2.approxPolyDP(contour, 0.01 * cv2.arcLength(contour, True), True)
-            if (cv2.contourArea(contour) > 30 * 40) and len(approx) <= 5:
-                x, y, w, h = cv2.boundingRect(contour)
-                if len(approx) == 3:
-                    cv2.drawContours(img, [contour], 0, (0, 0, 255), 4)
-                
-                if 0.8 < w/h < 1.2:
-                    cv2.drawContours(img, [contour], 0, (0, 0, 255), 4)
+        x, y, w, h = cv2.boundingRect(contour)
+
+        approx = cv2.approxPolyDP(contour, 0.01 * cv2.arcLength(contour, True), True)
+        if (cv2.contourArea(contour) > 30 * 40) and (len(approx) == 4 or len(approx) == 5 or len(approx) == 7) \
+                and (0.8 < w / h < 1.1):
+            print(int(x-w/2), int(x+w/2), int(y-h/2), int(y+h/2))
+            cv2.drawContours(img, [contour], 0, (0, 0, 255), 4)
+            k = k + 1
+
+    if k == 0:
+        print('Classified but not detected')
+
+
+
+
 
 
 

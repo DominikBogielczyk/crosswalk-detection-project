@@ -3,7 +3,6 @@ import numpy as np
 import cv2
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import confusion_matrix
-import pandas as pd
 import os
 from pathlib import Path
 import xml.etree.ElementTree as ET
@@ -39,7 +38,7 @@ def load_data(im_path, an_path):
                 class_id = 1
 
         image = cv2.imread(os.path.join(im_path, image_path))
-        data.append({'image': image, 'label': class_id})
+        data.append({'image': image, 'label': class_id, 'path': image_path})
 
     return data
 
@@ -96,6 +95,7 @@ def predict(rf, data):
 
     return data
 
+
 def evaluate(data):
     pred_labels = []
     true_labels = []
@@ -111,11 +111,45 @@ def evaluate(data):
             else:
                 m = m + 1
     acc = l/(l+m)
-    print('accuracy= %.3f' % acc)
+    #print('accuracy= %.3f' % acc)
 
-    #matrix = confusion_matrix(true_labels, pred_labels)
+    matrix = confusion_matrix(true_labels, pred_labels)
     #print(matrix)
     return
+
+def detect(data):
+    for sample in data:
+        if sample['label'] == 1:
+            img = cv2.imread(os.path.join('test/images/', sample['path']))
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+            # setting threshold of gray image
+            _, threshold = cv2.threshold(gray, 70, 255, cv2.THRESH_BINARY)
+
+            contours, _ = cv2.findContours(threshold, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+            print(sample['path'])
+            k = 0
+
+            i = 0
+            for contour in contours:
+                #first contour is loaded image
+                if i == 0:
+                    i = 1
+
+                x, y, w, h = cv2.boundingRect(contour)
+
+                approx = cv2.approxPolyDP(contour, 0.01 * cv2.arcLength(contour, True), True)
+                if (cv2.contourArea(contour) > 30 * 40) and (len(approx) == 4 or len(approx) == 5 or len(approx) == 7) \
+                        and (0.8 < w / h < 1.1):
+                    print(int(x - h / 2), int(x + h / 2), int(y - w / 2), int(y + w / 2))
+                    cv2.drawContours(img, [contour], 0, (0, 0, 255), 4)
+                    k = k + 1
+
+            if k == 0:
+                print('Classified but not detected')
+
+            cv2.imshow(sample['path'], img)
 
 
 def balance_dataset(data, ratio):
@@ -137,21 +171,26 @@ def main():
     data_test = load_data(test_im_path, test_an_path)
     data_test = balance_dataset(data_test, 1.0)
 
-    print('learning BoVW')
+    #print('learning BoVW')
     #learn_bovw(data_train)
 
-    print('extracting train features')
+    #print('extracting train features')
     data_train = extract_features(data_train)
 
-    print('training')
+    #print('training')
     rf = train(data_train)
 
-    print('extracting test features')
+    #print('extracting test features')
     data_test = extract_features(data_test)
 
-    print('testing on testing dataset')
+    #print('testing on testing dataset')
     data_test = predict(rf, data_test)
     evaluate(data_test)
+
+    detect(data_test)
+
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
 
 if __name__ == '__main__':
