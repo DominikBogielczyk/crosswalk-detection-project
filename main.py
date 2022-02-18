@@ -1,4 +1,3 @@
-import random
 import numpy as np
 import cv2
 from sklearn.ensemble import RandomForestClassifier
@@ -13,7 +12,7 @@ def filelist(root, file_type):
                                                 files in os.walk(root) for f in files if f.endswith(file_type)]
 
 
-def load_data(im_path, an_path):
+def load_data(im_path, an_path, load_label):
     annotations = filelist(an_path, '.xml')
     data = []
 
@@ -26,19 +25,22 @@ def load_data(im_path, an_path):
 
         class_id = 0
 
-        # READ ALL 'OBJECT' ELEMENTS FROM .XML FILE
-        for obj in tree.findall('object'):
-            class_name = obj.find("./name").text
-            xmin = int(obj.find("./bndbox/xmin").text)
-            xmax = int(obj.find("./bndbox/xmax").text)
-            ymin = int(obj.find("./bndbox/ymin").text)
-            ymax = int(obj.find("./bndbox/ymax").text)
-
-            if abs(xmax - xmin) > 0.1 * width and abs(ymax - ymin) > 0.1 * height and class_name == "crosswalk":
-                class_id = 1
-
         image = cv2.imread(os.path.join(im_path, image_path))
-        data.append({'image': image, 'label': class_id, 'path': image_path})
+        if load_label:
+            # READ ALL 'OBJECT' ELEMENTS FROM .XML FILE
+            for obj in tree.findall('object'):
+                class_name = obj.find("./name").text
+                xmin = int(obj.find("./bndbox/xmin").text)
+                xmax = int(obj.find("./bndbox/xmax").text)
+                ymin = int(obj.find("./bndbox/ymin").text)
+                ymax = int(obj.find("./bndbox/ymax").text)
+
+                if abs(xmax - xmin) > 0.1 * width and abs(ymax - ymin) > 0.1 * height and class_name == "crosswalk":
+                    class_id = 1
+
+            data.append({'image': image, 'label': class_id, 'path': image_path})
+        else:
+            data.append({'image': image, 'path': image_path})
 
     return data
 
@@ -87,6 +89,7 @@ def train(data):
 
     return clf
 
+
 def predict(rf, data):
     for sample in data:
         if sample['desc'] is not None:
@@ -111,68 +114,76 @@ def evaluate(data):
             else:
                 m = m + 1
     acc = l/(l+m)
-    #print('accuracy= %.3f' % acc)
+    print('accuracy = %.3f' % acc)
 
     matrix = confusion_matrix(true_labels, pred_labels)
-    #print(matrix)
+    print(matrix)
     return
+
+
+def display_dataset_stats(data):
+    class_to_num = {}
+    for idx, sample in enumerate(data):
+        class_id = sample['label']
+        if class_id not in class_to_num:
+            class_to_num[class_id] = 0
+        class_to_num[class_id] += 1
+
+    class_to_num = dict(sorted(class_to_num.items(), key=lambda item: item[0]))
+    # print('number of samples for each class:')
+    print(class_to_num)
+
 
 def detect(data):
     for sample in data:
-        if sample['label'] == 1:
-            img = cv2.imread(os.path.join('test/images/', sample['path']))
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        if sample['label_pred'] == 1:
+            gray = cv2.cvtColor(sample['image'], cv2.COLOR_BGR2GRAY)
+            _, threshold = cv2.threshold(gray, 70, 255, cv2.THRESH_BINARY) #small crosswalk
+            _, threshold2 = cv2.threshold(gray, 125, 255, cv2.THRESH_BINARY) #big crosswalk
+            res = cv2.bitwise_and(threshold, threshold2)
 
-            # setting threshold of gray image
-            _, threshold = cv2.threshold(gray, 70, 255, cv2.THRESH_BINARY)
+            contours, _ = cv2.findContours(res, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-            contours, _ = cv2.findContours(threshold, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-            print(sample['path'])
             k = 0
 
-            i = 0
-            for contour in contours:
+            for i in range(len(contours)):
                 #first contour is loaded image
                 if i == 0:
                     i = 1
 
-                x, y, w, h = cv2.boundingRect(contour)
+                x, y, w, h = cv2.boundingRect(contours[i])
 
-                approx = cv2.approxPolyDP(contour, 0.01 * cv2.arcLength(contour, True), True)
-                if (cv2.contourArea(contour) > 30 * 40) and (len(approx) == 4 or len(approx) == 5 or len(approx) == 7) \
-                        and (0.8 < w / h < 1.1):
-                    print(int(x - h / 2), int(x + h / 2), int(y - w / 2), int(y + w / 2))
-                    cv2.drawContours(img, [contour], 0, (0, 0, 255), 4)
+                approx = cv2.approxPolyDP(contours[i], 0.01 * cv2.arcLength(contours[i], True), True)
+                if (30*40 < cv2.contourArea(contours[i]) < 30000) and (len(approx) == 4 or len(approx) == 5 or len(approx) == 7) \
+                        and (0.6 < (w / h) < 1.6) and k == 0:
+                    #print detected sign localization
+                    print(sample['path'])
+                    print(1)
+                    print(int(x), int(x + w), int(y), int(y + h))
+
+                    #draw contours
+                    cv2.drawContours(sample['image'], [contours[i]], 0, (0, 0, 255), 8)
                     k = k + 1
 
-            if k == 0:
-                print('Classified but not detected')
-
-            cv2.imshow(sample['path'], img)
-
-
-def balance_dataset(data, ratio):
-    sampled_data = random.sample(data, int(ratio * len(data)))
-
-    return sampled_data
+            if k != 0:
+                cv2.imshow(sample['path'], sample['image'])
 
 
 def main():
     train_im_path = Path('train/images')
     train_an_path = Path('train/annotations')
 
-    data_train = load_data(train_im_path, train_an_path)
-    data_train = balance_dataset(data_train, 1.0)
+    data_train = load_data(train_im_path, train_an_path, load_label=True)
+    #display_dataset_stats(data_train)
 
     test_im_path = Path('test/images')
     test_an_path = Path('test/annotations')
 
-    data_test = load_data(test_im_path, test_an_path)
-    data_test = balance_dataset(data_test, 1.0)
+    data_test = load_data(test_im_path, test_an_path, load_label=False)
+    #display_dataset_stats(data_test)
 
     #print('learning BoVW')
-    #learn_bovw(data_train)
+    learn_bovw(data_train)
 
     #print('extracting train features')
     data_train = extract_features(data_train)
@@ -185,7 +196,7 @@ def main():
 
     #print('testing on testing dataset')
     data_test = predict(rf, data_test)
-    evaluate(data_test)
+    #evaluate(data_test)
 
     detect(data_test)
 
